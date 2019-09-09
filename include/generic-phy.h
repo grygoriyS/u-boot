@@ -9,6 +9,27 @@
 
 struct ofnode_phandle_args;
 
+enum phy_mode {
+	PHY_MODE_INVALID,
+	PHY_MODE_USB_HOST,
+	PHY_MODE_USB_HOST_LS,
+	PHY_MODE_USB_HOST_FS,
+	PHY_MODE_USB_HOST_HS,
+	PHY_MODE_USB_HOST_SS,
+	PHY_MODE_USB_DEVICE,
+	PHY_MODE_USB_DEVICE_LS,
+	PHY_MODE_USB_DEVICE_FS,
+	PHY_MODE_USB_DEVICE_HS,
+	PHY_MODE_USB_DEVICE_SS,
+	PHY_MODE_USB_OTG,
+	PHY_MODE_UFS_HS_A,
+	PHY_MODE_UFS_HS_B,
+	PHY_MODE_PCIE,
+	PHY_MODE_ETHERNET,
+	PHY_MODE_MIPI_DPHY,
+	PHY_MODE_SATA
+};
+
 /**
  * struct phy - A handle to (allowing control of) a single phy port.
  *
@@ -55,7 +76,7 @@ struct phy_ops {
 	/**
 	 * init - initialize the hardware.
 	 *
-	 * Hardware intialization should not be done in during probe() but
+	 * Hardware initialization should not be done in during probe() but
 	 * should be implemented in this init() function. It could be starting
 	 * PLL, taking a controller out of reset, routing, etc. This function
 	 * is typically called only once per PHY port.
@@ -65,6 +86,24 @@ struct phy_ops {
 	 * @return 0 if OK, or a negative error code.
 	 */
 	int	(*init)(struct phy *phy);
+
+	/**
+	* init_ext - initialize and set the mode of the phy initialize
+	*
+	* @phy:	PHY port to be initialize
+	* @mode: PHY port mode
+	* @submode: PHY port submode
+	*
+	* The init_ext() functions is equal to @init() except it accepts
+	* additional parameters to configure multi mode PHYs (like serdes).
+	* The @phy_mode specifies generic PHY type (subsystem, like -
+	* PCIE/ETHERNET/USB_), listed in enum @phy_mode. The PHY submode allows
+	* to specify subsystem specific interface mode (phy_interface_t for
+	* Ethernet for example).
+	*
+	* @return 0 if OK, or a negative error code
+	*/
+	int	(*init_ext)(struct phy *phy, enum phy_mode mode, int submode);
 
 	/**
 	* exit - de-initialize the PHY device
@@ -128,9 +167,21 @@ struct phy_ops {
  * generic_phy_init() - initialize the PHY port
  *
  * @phy:	the PHY port to initialize
+ *
  * @return 0 if OK, or a negative error code
  */
 int generic_phy_init(struct phy *phy);
+
+/**
+ * generic_phy_init_ext() - initialize the PHY port
+ *
+ * @phy: the PHY port to initialize
+ * @mode: PHY port mode
+ * @submode: PHY port submode
+ *
+ * @return 0 if OK, or a negative error code
+ */
+int generic_phy_init_ext(struct phy *phy, enum phy_mode mode, int submode);
 
 /**
  * generic_phy_init() - de-initialize the PHY device
@@ -192,6 +243,8 @@ int generic_phy_power_off(struct phy *phy);
  */
 int generic_phy_get_by_index(struct udevice *user, int index,
 			     struct phy *phy);
+int generic_phy_of_get_by_index(struct udevice *user, ofnode node,
+				int index, struct phy *phy);
 
 /**
  * generic_phy_get_by_name() - Get a PHY device by its name.
@@ -228,6 +281,12 @@ static inline int generic_phy_init(struct phy *phy)
 	return 0;
 }
 
+static inline  int generic_phy_init_ext(struct phy *phy,
+					enum phy_mode mode, int submode)
+{
+	return 0;
+}
+
 static inline int generic_phy_exit(struct phy *phy)
 {
 	return 0;
@@ -260,6 +319,11 @@ static inline int generic_phy_get_by_name(struct udevice *user, const char *phy_
 	return 0;
 }
 
+static inline int generic_phy_of_get_by_index(struct udevice *dev, ofnode node,
+				int index, struct phy *phy)
+{
+	return 0;
+}
 #endif /* CONFIG_PHY */
 
 /**

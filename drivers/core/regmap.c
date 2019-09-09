@@ -317,6 +317,8 @@ int regmap_raw_read_range(struct regmap *map, uint range_num, uint offset,
 		break;
 	case REGMAP_SIZE_32:
 		*((u32 *)valp) = __read_32(ptr, map->endianness);
+		debug("%s: %p\n", __func__, ptr);
+
 		break;
 #if defined(in_le64) && defined(in_be64) && defined(readq)
 	case REGMAP_SIZE_64:

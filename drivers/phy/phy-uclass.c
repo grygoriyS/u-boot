@@ -90,6 +90,65 @@ err:
 	return ret;
 }
 
+int generic_phy_of_get_by_index(struct udevice *dev, ofnode node,
+				int index, struct phy *phy)
+{
+	struct ofnode_phandle_args args;
+	struct phy_ops *ops;
+	struct udevice *phydev;
+	int i, ret;
+
+	debug("%s(dev=%p, index=%d, phy=%p)\n", __func__, dev, index, phy);
+
+	assert(phy);
+	phy->dev = NULL;
+	ret = ofnode_parse_phandle_with_args(node, "phys", "#phy-cells", 0,
+					     index, &args);
+	if (ret) {
+		debug("%s: dev_read_phandle_with_args failed: err=%d\n",
+		      __func__, ret);
+		return ret;
+	}
+
+	ret = uclass_get_device_by_ofnode(UCLASS_PHY, args.node, &phydev);
+	if (ret) {
+		debug("%s: uclass_get_device_by_ofnode failed: err=%d\n",
+		      __func__, ret);
+
+		/* Check if args.node's parent is a PHY provider */
+		ret = uclass_get_device_by_ofnode(UCLASS_PHY,
+						  ofnode_get_parent(args.node),
+						  &phydev);
+		if (ret)
+			return ret;
+
+		/* insert phy idx at first position into args array */
+		for (i = args.args_count; i >= 1 ; i--)
+			args.args[i] = args.args[i - 1];
+
+		args.args_count++;
+		args.args[0] = ofnode_read_u32_default(args.node, "reg", -1);
+	}
+
+	phy->dev = phydev;
+
+	ops = phy_dev_ops(phydev);
+
+	if (ops->of_xlate)
+		ret = ops->of_xlate(phy, &args);
+	else
+		ret = generic_phy_xlate_offs_flags(phy, &args);
+	if (ret) {
+		debug("of_xlate() failed: %d\n", ret);
+		goto err;
+	}
+
+	return 0;
+
+err:
+	return ret;
+}
+
 int generic_phy_get_by_name(struct udevice *dev, const char *phy_name,
 			    struct phy *phy)
 {
@@ -114,7 +173,17 @@ int generic_phy_init(struct phy *phy)
 		return 0;
 	ops = phy_dev_ops(phy->dev);
 
+	if (ops->init_ext)
+		return ops->init_ext(phy, PHY_MODE_INVALID, 0);
+
 	return ops->init ? ops->init(phy) : 0;
+}
+
+int generic_phy_init_ext(struct phy *phy, enum phy_mode mode, int submode)
+{
+	struct phy_ops const *ops = phy_dev_ops(phy->dev);
+
+	return ops->init_ext ? ops->init_ext(phy, mode, submode) : 0;
 }
 
 int generic_phy_reset(struct phy *phy)

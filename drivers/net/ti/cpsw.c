@@ -19,6 +19,7 @@
 #include <phy.h>
 #include <asm/arch/cpu.h>
 #include <dm.h>
+#include <generic-phy.h>
 
 #include "cpsw_mdio.h"
 
@@ -1171,19 +1172,22 @@ static int cpsw_eth_probe(struct udevice *dev)
 	priv->data = pdata->priv_pdata;
 	ti_cm_get_macid(dev, priv->data, pdata->enetaddr);
 	/* Select phy interface in control module */
+#if 0
 	cpsw_phy_sel(priv, priv->data->phy_sel_compat,
 		     pdata->phy_interface);
-
+#endif
 	return _cpsw_register(priv);
 }
 
 #if CONFIG_IS_ENABLED(OF_CONTROL)
-static void cpsw_eth_of_parse_slave(struct cpsw_platform_data *data,
+static void cpsw_eth_of_parse_slave(struct udevice *dev,
+				    struct cpsw_platform_data *data,
 				    int slave_index, ofnode subnode)
 {
 	struct ofnode_phandle_args out_args;
 	struct cpsw_slave_data *slave_data;
 	const char *phy_mode;
+	struct phy if_phy;
 	u32 phy_id[2];
 	int ret;
 
@@ -1210,6 +1214,15 @@ static void cpsw_eth_of_parse_slave(struct cpsw_platform_data *data,
 
 	slave_data->max_speed = ofnode_read_s32_default(subnode,
 							"max-speed", 0);
+
+	ret = generic_phy_of_get_by_index(dev, subnode, 0, &if_phy);
+	if (ret)
+		printf("error: unable to get interface phy\n");
+	//printf("========== phy : id %ld \n", if_phy.id);
+
+	ret = generic_phy_init_ext(&if_phy, PHY_MODE_ETHERNET, slave_data->phy_if);
+	if (ret)
+		printf("error: unable to init interface phy\n");
 }
 
 static int cpsw_eth_ofdata_to_platdata(struct udevice *dev)
@@ -1295,7 +1308,8 @@ static int cpsw_eth_ofdata_to_platdata(struct udevice *dev)
 			if (slave_index >= data->slaves)
 				continue;
 
-			cpsw_eth_of_parse_slave(data, slave_index, subnode);
+			cpsw_eth_of_parse_slave(dev, data,
+						slave_index, subnode);
 			slave_index++;
 		}
 
@@ -1318,6 +1332,8 @@ static int cpsw_eth_ofdata_to_platdata(struct udevice *dev)
 			}
 		}
 	}
+	pr_err("cpsw =====================1 \n");
+
 
 	data->slave_data[0].slave_reg_ofs = CPSW_SLAVE0_OFFSET;
 	data->slave_data[0].sliver_reg_ofs = CPSW_SLIVER0_OFFSET;
@@ -1339,6 +1355,8 @@ static int cpsw_eth_ofdata_to_platdata(struct udevice *dev)
 		      phy_string_for_interface(pdata->phy_interface));
 		return -EINVAL;
 	}
+
+	pr_err("cpsw ===================== 2\n");
 
 	return 0;
 }
